@@ -227,10 +227,10 @@ class CnrProblem(PerturbationPanel):
     def _gen_rp_vars(self):
         rpnames = set()
         for rpert in self._rpert_dict.values():
-            rpnames.update(set(rpert.flatten()))
+            for rp in set(rpert[np.nonzero(rpert)]):
+                rpnames.update(rp.free_symbols)
         rpnames = [str(r) for r in list(rpnames)]
         rpnames = sorted(rpnames)
-        rpnames.remove('0')
         return rpnames
 
     def _gen_rp_indicators(self):
@@ -364,7 +364,6 @@ class CnrProblem(PerturbationPanel):
 
                     # Column j of rglob
                     coef = list(np.array(rglob)[:, pert])
-                    rpvar = str(rpert[node, pert])
 
                     # Remove absent interactions
                     indices = [i for i, x in enumerate(var) if x == '0']
@@ -372,11 +371,15 @@ class CnrProblem(PerturbationPanel):
                     coef = [i for j, i in enumerate(coef) if j not in indices]
 
                     # Add direct perturbation if applicable
-                    if rpvar in self._rp_vars:
-                        var.append(rpvar)
-                        coef.append(1.)
-                    else:
-                        assert rpvar == '0', "Unexpected value in rpert"
+                    try:
+                        for rpvar in rpert[node, pert].free_symbols:
+                            var.append(str(rpvar))
+                            coef.append(1.)
+                    except:
+                        if rpert[node, pert] == 0:
+                            pass
+                        else:
+                            raise ValueError
 
                     # Add error term (also add variable)
                     errvar = '_'.join(['res', cell_line,
@@ -474,6 +477,7 @@ class CnrProblem(PerturbationPanel):
                 rpdev_constr.append([var, coef])
                 rpdev_constr_names.append("rpdiffeq_" + rp)
 
+
         # Add the deviations from mean as variables to cpx object
         both_vars = self._dev_vars + self._rpdev_vars
         cpx.variables.add(names=both_vars,
@@ -510,12 +514,40 @@ class CnrProblem(PerturbationPanel):
                                           name=name)
 
         # ---------------------------------------------------------------------
+        # Construct indicator constraints for deviation of edge from mean
+        for dev in self._dev_vars:
+            # dev is expected to have form
+            # dev_r_cellline_nodei_nodej
+            # re_cl = '(' + '|'.join(self.cell_line_names) + ')'
+            # re_nds = '(' + '|'.join(self._nodes) + ')'
+            # re_sp = re.compile(re_cl + '_{1}' + re_nds + '_{1}' + re_nds + '$')
+            # dev_elements = re.findall(re_sp, dev)
+            # assert len(dev_elements) == 1, dev + " has unexpected form"
+            # dev_elements = dev_elements[0]
+            # assert len(dev_elements) == 3, dev + " has unexpected form"
+            dev_elements = dev.split('_')[2:]
+            assert len(dev_elements) == 3, dev + " has unexpected form"
+            ivar = '_'.join(["IDev", dev_elements[1], dev_elements[2]])
+            assert ivar in self._dev_indicators, " Unexpected variable in \
+            construction of indicator constraints"
+            name = '_'.join(["IndDev", dev_elements[0], dev_elements[1],
+                             dev_elements[2]])
+            constr = cplex.SparsePair(ind=[dev], val=[1.])
+            cpx.indicator_constraints.add(indvar=ivar, complemented=1,
+                                          rhs=0., sense='E',
+                                          lin_expr=constr,
+                                          name=name)
+
+
+
+        # ---------------------------------------------------------------------
         # Construct indicator constraints for deviation of perturbation from
         # mean
         for rpdev in self._rpdev_vars:
-            dev_elements = rpdev.split('_')[2:]
             # rpdev is expected to have form:
-            # rp_cellline_perturbation_targetnode
+            # rpdev_rp_cellline_perturbation_targetnode
+            dev_elements = rpdev.split('_')[2:]
+
             # TODO disallow spaces in names
             # will give problems when using cplex.write(), which subsititutes
             # spaces with underscores
