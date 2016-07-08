@@ -1,5 +1,7 @@
 """Classes to hold input data for Comparative Network Reconstruction."""
 
+import numpy as np
+
 # class PerturbationsAnnotation():
 #     """Class to store information about perturbations. This information is
 #     stored as a list of dictionaries, where each
@@ -69,8 +71,11 @@ class PerturbationPanel:
 
     @property
     def perts(self):
-        """Get perts, a list of lists that annotates which perturbations were
-        applied."""
+        """Get perts.
+
+        A list of lists that annotates which perturbations were
+        applied.
+        """
         return self._perts
 
     @property
@@ -85,8 +90,10 @@ class PerturbationPanel:
 
     @property
     def pert_annot(self):
-        """Get pert_annot. Dict. that maps applied perturbation to targeted
-        nodes."""
+        """Get pert_annot.
+
+        dict that maps applied perturbation to targeted nodes.
+        """
         return self._pert_annot
 
     def add_cell_line(self, name, rglob):
@@ -96,13 +103,14 @@ class PerturbationPanel:
         ----------
         name : str
             name of cell lines
+
         rglob : pandas.DataFrame
             Measured perturbation response
         """
         assert isinstance(name, str)
         self._check_consistency(rglob)
         self._cell_lines.append(name)
-        self._rglob[name] = rglob
+        self._rglob[name] = rglob.copy()
 
     def _check_consistency(self, rglob):
         assert tuple(rglob.index) == self._nodes, "Index don't match nodes"

@@ -1,9 +1,9 @@
 """Classes and functions to generate cplex.Cplex for CNR problem."""
 
 import cplex
-import cnr.cplexutils
 import numpy as np
 import sympy
+import cnr.cplexutils
 from cnr.data import PerturbationPanel
 
 
@@ -477,7 +477,6 @@ class CnrProblem(PerturbationPanel):
                 rpdev_constr.append([var, coef])
                 rpdev_constr_names.append("rpdiffeq_" + rp)
 
-
         # Add the deviations from mean as variables to cpx object
         both_vars = self._dev_vars + self._rpdev_vars
         cpx.variables.add(names=both_vars,
@@ -518,13 +517,6 @@ class CnrProblem(PerturbationPanel):
         for dev in self._dev_vars:
             # dev is expected to have form
             # dev_r_cellline_nodei_nodej
-            # re_cl = '(' + '|'.join(self.cell_line_names) + ')'
-            # re_nds = '(' + '|'.join(self._nodes) + ')'
-            # re_sp = re.compile(re_cl + '_{1}' + re_nds + '_{1}' + re_nds + '$')
-            # dev_elements = re.findall(re_sp, dev)
-            # assert len(dev_elements) == 1, dev + " has unexpected form"
-            # dev_elements = dev_elements[0]
-            # assert len(dev_elements) == 3, dev + " has unexpected form"
             dev_elements = dev.split('_')[2:]
             assert len(dev_elements) == 3, dev + " has unexpected form"
             ivar = '_'.join(["IDev", dev_elements[1], dev_elements[2]])
@@ -537,8 +529,6 @@ class CnrProblem(PerturbationPanel):
                                           rhs=0., sense='E',
                                           lin_expr=constr,
                                           name=name)
-
-
 
         # ---------------------------------------------------------------------
         # Construct indicator constraints for deviation of perturbation from
