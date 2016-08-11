@@ -1,6 +1,4 @@
-"""Utilitiy functions to interact with cplex.Cplex objects """
-
-"""Functions to manipulate cplex objects."""
+"""Utilitiy functions to interact with cplex.Cplex objects."""
 
 import cplex
 
@@ -9,7 +7,6 @@ import cplex
 #
 # functions
 #
-
 
 def set_rhs_linear(cpx, newval):
     """Set rhs of linear constraints to newval.

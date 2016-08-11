@@ -39,7 +39,10 @@ def generate_rpert_symbols(nodes, perturbations, perturbation_annotations,
         if isinstance(pert, str):
             pert = [pert]
         for p in pert:
-            for target in perturbation_annotations[p]:
+            annot = perturbation_annotations[p]
+            if isinstance(annot, str):
+                annot = [annot]
+            for target in annot:
                 indx = nodes.index(target)
                 new_pert[indx] += sympy.Symbol('_'.join([BASE, p, target]))
         rpert_sym = np.append(rpert_sym, new_pert, axis=1)
@@ -159,6 +162,11 @@ class CnrProblem(PerturbationPanel):
     cpx : cplex.Cplex object
         Contains the Cnr cplex problem formulation.
 
+    Methods
+    -------
+    set_edge_sign(edge, sign)
+
+    set_pert_sign(perturbation, sign)
     """
 
     def __init__(
@@ -192,7 +200,23 @@ class CnrProblem(PerturbationPanel):
 
     @property
     def rpert_dict(self):
+        """Dict with rpert matrices, elements are sympy.Symbols."""
         return self._rpert_dict
+
+    @property
+    def eta(self): return self._eta
+
+    @property
+    def theta(self): return self._theta
+
+    @property
+    def prior_network(self): return self._prior
+
+    @property
+    def maxints(self): return self._maxints
+
+    @property
+    def maxdevs(self): return self._maxdevs
 
     def _gen_rloc(self):
         rldict = dict()

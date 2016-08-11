@@ -1,6 +1,7 @@
 """Classes to hold input data for Comparative Network Reconstruction."""
 
 import numpy as np
+import cnr.cplexutils
 
 # class PerturbationsAnnotation():
 #     """Class to store information about perturbations. This information is
@@ -29,6 +30,13 @@ class PerturbationPanel:
     nodes : tuple of strings
         Names of the measured nodes.
 
+    perts: list of lists
+        Each element of the outer list represents a perturbation of which the
+        response in measured. Each element of the inner list the combination of
+        applied perturbations for that measurement.
+        Example; [[EGFR, PLX], [AKTi]].
+
+
     rglob : dict of pandas.DataFrame
         Dataframe containg the results of a perturbation experiment. Rows
         correspond to nodes. Columns correspond to perturbation. Entries
@@ -43,16 +51,13 @@ class PerturbationPanel:
     nodes : tuple of strings
         Names of the measured epitopes
 
-    perts: list of lists
-        Each element of the outer list represents a perturbation of which the
-        response in measured. Each element of the inner list the combination of
-        applied perturbations for that measurement.
-        Example; [[EGFR, PLX], [AKTi]].
-
     rglob : dict of pandas.DataFrames
         Measured perturbation responses
 
-    pert_annot
+    pert_annot : dict
+        maps pertrubations to target nodes.
+
+    perturbation_names : list of str (optional)
     """
 
     def __init__(self, nodes, perts, pert_annot=dict(), rglob=dict()):
@@ -88,6 +93,12 @@ class PerturbationPanel:
         """Get names of cell lines in the panel."""
         return self._cell_lines
 
+    @cell_lines.setter
+    def cell_lines(self, cell_lines):
+        """Reorder cell line names."""
+        assert set(cell_lines) == set(self.rglob.keys())
+        self._cell_lines = cell_lines
+
     @property
     def pert_annot(self):
         """Get pert_annot.
@@ -95,6 +106,11 @@ class PerturbationPanel:
         dict that maps applied perturbation to targeted nodes.
         """
         return self._pert_annot
+
+    # @property
+    # def perturbation_ids(self):
+    #     [list(rg.columns) for rg in self._rglob]
+    #     return self._perturbation_ids
 
     def add_cell_line(self, name, rglob):
         """Add response data from cell lines to PerturbationPanel.
