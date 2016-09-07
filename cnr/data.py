@@ -1,7 +1,7 @@
 """Classes to hold input data for Comparative Network Reconstruction."""
 
-import numpy as np
-import cnr.cplexutils
+# import numpy as np
+# import cnr.cplexutils
 
 # class PerturbationsAnnotation():
 #     """Class to store information about perturbations. This information is
