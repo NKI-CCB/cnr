@@ -11,8 +11,38 @@ from cnr.data import PerturbationPanel
 #
 # Helper functions
 
-def generate_rpert_symbols(nodes, perturbations, perturbation_annotations,
-                           prefix=""):
+def _add_direct_targets(nodes, pert_name, pert_annot, BASE):
+    to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
+
+    for target in pert_annot[pert_name].direct_targets:
+        indx = nodes.index(target)
+        to_add[indx] += sympy.Symbol('_'.join([BASE, pert_name, target]))
+    return to_add
+
+def _add_downstream_effect(nodes, pert_name, pert_targets, prior_network, BASE):
+    to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
+
+    if pert_targets is None:
+        return to_add
+
+    # If restricted to prior network
+    if prior_network:
+        for ds_target, source in prior_network:
+            if source in pert_targets:
+                indx = nodes.index(ds_target)
+                to_add[indx] += sympy.Symbol(
+                    '_'.join([BASE, pert_name+'@'+source, ds_target]))
+    else:
+        for target in pert_targets:
+            downstream_nodes = set(nodes) - set([target])
+            for ds_target in downstream_nodes:
+                indx = nodes.index(ds_target)
+                to_add[indx] += sympy.Symbol(
+                    '_'.join([BASE, pert_name+'@'+target, ds_target]))
+    return to_add
+
+def generate_rpert_symbols(nodes, perturbations, pert_annot,
+                           prefix="", prior_network=None):
     """"Generate matrix containing perturbations as symbols.
 
     Parameters
@@ -28,27 +58,32 @@ def generate_rpert_symbols(nodes, perturbations, perturbation_annotations,
         the j-th perturbation.
     """
     BASE = "rp"
+    BASEDS = 'rpDS'
     if prefix:
         assert type(prefix) == str
         BASE = '_'.join([BASE, prefix])
+        BASEDS = '_'.join([BASEDS, prefix])
 
     rpert_sym = np.empty([len(nodes), 0], dtype=sympy.Symbol)
 
-    for pert in perturbations:
+    # For each applied (combination of) perturbations
+    for pert_name_lst in perturbations:
         new_pert = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
-        if isinstance(pert, str):
-            pert = [pert]
-        for p in pert:
-            annot = perturbation_annotations[p]
-            if isinstance(annot, str):
-                annot = [annot]
-            for target in annot:
-                indx = nodes.index(target)
-                new_pert[indx] += sympy.Symbol('_'.join([BASE, p, target]))
+        if isinstance(pert_name_lst, str):
+            pert_name_lst = [pert_name_lst]
+
+        for pert_name in pert_name_lst:
+
+            # Add direct targets effects
+            new_pert += _add_direct_targets(nodes, pert_name, pert_annot, BASE)
+
+            # Add indirect effects
+            new_pert += _add_downstream_effect(
+                nodes, pert_name, pert_annot[pert_name].with_downstream_effects,
+                prior_network, BASEDS)
         rpert_sym = np.append(rpert_sym, new_pert, axis=1)
 
     return rpert_sym
-
 
 def generate_rloc_symbols(nodes, prior_network, prefix=None):
     """"Generate matrix containing local response coefficients as symbols.
@@ -229,7 +264,9 @@ class CnrProblem(PerturbationPanel):
         rpdict = dict()
         for name in self.cell_lines:
             rpdict[name] = generate_rpert_symbols(
-                self.nodes, self.perts, self.pert_annot, prefix=name)
+                self.nodes, self.perts, self.pert_annot,
+                prefix=name, prior_network = self._prior
+                )
         return rpdict
 
     def _gen_rloc_vars(self):
