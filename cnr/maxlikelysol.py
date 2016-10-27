@@ -1,9 +1,11 @@
 """Functions and classes to find maximum likelyhood solution."""
 
 import sys
-import scipy
+
 import numpy as np
 import pandas as pd
+import scipy
+
 import cnr.cnrutils
 
 

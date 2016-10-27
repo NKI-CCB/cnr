@@ -13,7 +13,7 @@ def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
 
     ncl = len(cell_lines)
     nrow, ncol = d[cell_lines[0]].shape
-    fsize = (figwidth,  figwidth * nrow / (ncol * ncl + 3))
+    fsize = (figwidth, figwidth * nrow / (ncol * ncl + 3))
 
     fig, axn = plt.subplots(1, ncl, sharex=True, sharey=True, figsize=fsize)
     # cbar_ax = fig.add_axes([.91, .3, .03, .4])
@@ -27,10 +27,9 @@ def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
                     linewidths=.3,
                     annot=annot,
                     cbar_ax=None if i else cbar_ax)
-        ax.set_title(cl, fontdict={'fontsize': 1.2 *
-                                   figwidth, 'fontweight': "bold"})
+        ax.set_title(cl, fontdict={'fontsize': 1.2 * figwidth,
+                                   'fontweight': "bold"})
         ax.tick_params(labelsize=figwidth * .8)
-
 
 def graph_from_sol(sol, cl, widthfactor=10):
     """Generate graph from complete solution.
