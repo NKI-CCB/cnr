@@ -11,38 +11,31 @@ from cnr.data import PerturbationPanel
 #
 # Helper functions
 
-def _add_direct_targets(nodes, pert_name, pert_annot, BASE):
+def _add_direct_target(nodes, pert_name, target, base_name):
     to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
-
-    for target in pert_annot[pert_name].direct_targets:
-        indx = nodes.index(target)
-        to_add[indx] += sympy.Symbol('_'.join([BASE, pert_name, target]))
+    indx = nodes.index(target)
+    to_add[indx] += sympy.Symbol('_'.join([base_name, pert_name, target]))
     return to_add
 
-def _add_downstream_effect(nodes, pert_name, pert_targets, prior_network, BASE):
+def _add_downstream_effect(nodes, pert_name, pert_target, prior_network, base_name):
     to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
-
-    if pert_targets is None:
-        return to_add
-
-    # If restricted to prior network
+     # If restricted to prior network
     if prior_network:
         for ds_target, source in prior_network:
-            if source in pert_targets:
+            if source == pert_target:
                 indx = nodes.index(ds_target)
                 to_add[indx] += sympy.Symbol(
-                    '_'.join([BASE, pert_name+'@'+source, ds_target]))
+                    '_'.join([base_name, pert_name+'@'+source, ds_target]))
     else:
-        for target in pert_targets:
-            downstream_nodes = set(nodes) - set([target])
-            for ds_target in downstream_nodes:
-                indx = nodes.index(ds_target)
-                to_add[indx] += sympy.Symbol(
-                    '_'.join([BASE, pert_name+'@'+target, ds_target]))
+        downstream_nodes = set(nodes) - set([pert_target])
+        for ds_target in downstream_nodes:
+            indx = nodes.index(ds_target)
+            to_add[indx] += sympy.Symbol(
+                '_'.join([base_name, pert_name+'@'+pert_target, ds_target]))
     return to_add
 
-def generate_rpert_symbols(nodes, perturbations, pert_annot,
-                           prefix="", prior_network=None):
+def generate_rpert_symbols(nodes, perturbations, pert_annot, ds_acting_perts, 
+                           prior_network=None, prefix=""):
     """"Generate matrix containing perturbations as symbols.
 
     Parameters
@@ -57,12 +50,12 @@ def generate_rpert_symbols(nodes, perturbations, pert_annot,
         element (i, j) is the perturbation(s) applied directly to node i
         the j-th perturbation.
     """
-    BASE = "rp"
-    BASEDS = 'rpDS'
+    base = "rp"
+    baseds = 'rpDS'
     if prefix:
         assert type(prefix) == str
-        BASE = '_'.join([BASE, prefix])
-        BASEDS = '_'.join([BASEDS, prefix])
+        base = '_'.join([base, prefix])
+        baseds = '_'.join([baseds, prefix])
 
     rpert_sym = np.empty([len(nodes), 0], dtype=sympy.Symbol)
 
@@ -73,14 +66,15 @@ def generate_rpert_symbols(nodes, perturbations, pert_annot,
             pert_name_lst = [pert_name_lst]
 
         for pert_name in pert_name_lst:
-
+            pert_target = pert_annot[pert_name]
             # Add direct targets effects
-            new_pert += _add_direct_targets(nodes, pert_name, pert_annot, BASE)
+            new_pert += _add_direct_target(nodes, pert_name, pert_target, base)
 
             # Add indirect effects
-            new_pert += _add_downstream_effect(
-                nodes, pert_name, pert_annot[pert_name].with_downstream_effects,
-                prior_network, BASEDS)
+            if pert_name in ds_acting_perts:
+                new_pert += _add_downstream_effect(
+                    nodes, pert_name, pert_target, prior_network, baseds
+                    )
         rpert_sym = np.append(rpert_sym, new_pert, axis=1)
 
     return rpert_sym
@@ -211,7 +205,8 @@ class CnrProblem(PerturbationPanel):
         # From input
         PerturbationPanel.__init__(
             self, nodes=pert_panel.nodes, perts=pert_panel.perts,
-            pert_annot=pert_panel.pert_annot, rglob=pert_panel.rglob)
+            pert_annot=pert_panel.pert_annot,
+            ds_acting_perts=pert_panel._ds_acting_perts, rglob=pert_panel.rglob)
         self._eta = eta
         self._theta = theta
         self._prior = prior_network
@@ -265,7 +260,7 @@ class CnrProblem(PerturbationPanel):
         for name in self.cell_lines:
             rpdict[name] = generate_rpert_symbols(
                 self.nodes, self.perts, self.pert_annot,
-                prefix=name, prior_network = self._prior
+                self._ds_acting_perts, prefix=name, prior_network = self._prior
                 )
         return rpdict
 
