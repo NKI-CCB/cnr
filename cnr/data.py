@@ -158,19 +158,20 @@ class PerturbationPanel:
     def _check_consistency(self):
         assert isinstance(self._ds_acting_perts, list)
         assert set(self._ds_acting_perts).issubset(self._pert_annot.keys())
-        assert set(self._pert_annot.values()).issubset(self._nodes), 'Not '+\
-        ' all perturbation targets are nodes.'
+        assert set(self._pert_annot.values()).issubset(self._nodes), 'Not ' +\
+            ' all perturbation targets are nodes.'
         for pert in self._perts:
-            assert isinstance(pert, list), 'Each element of perts should be list'
+            assert isinstance(
+                pert, list), 'Each element of perts should be list'
             assert set(pert).issubset(self._pert_annot.keys()), "Some \
                 perturbations do not have direct target annotation:" +\
                 str(set(pert) - set(self._pert_annot.keys()))
 
         for pert_name, pert_target in self.pert_annot.items():
             assert pert_target in self.nodes, "Direct target " +\
-            str(pert_target) + " of " + str(pert_name) + " doesn't match nodes."
+                str(pert_target) + " of " + \
+                str(pert_name) + " doesn't match nodes."
 
         for cell_line, rglob in self._rglob.items():
             assert tuple(rglob.index) == self._nodes, "Index of " + \
-            str(cell_line) + " don't match nodes"
-        
+                str(cell_line) + " don't match nodes"

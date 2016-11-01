@@ -65,17 +65,17 @@ def set_rhs_indicator(cpx, newval):
     nind_old = cpx.indicator_constraints.get_num()
     cpx.indicator_constraints.delete()
     for iij in inames:
-        rij = 'r'+iij[1:]
-        nij = 'ind'+iij[1:]
+        rij = 'r' + iij[1:]
+        nij = 'ind' + iij[1:]
         constr = cplex.SparsePair(ind=[rij], val=[1.])
         cpx.indicator_constraints.add(indvar=iij, complemented=1,
                                       rhs=newval, sense='L',
                                       lin_expr=constr,
-                                      name=nij+"_ub")
+                                      name=nij + "_ub")
         cpx.indicator_constraints.add(indvar=iij, complemented=1,
                                       rhs=-newval, sense='G',
                                       lin_expr=constr,
-                                      name=nij+"_lb")
+                                      name=nij + "_lb")
     nind_new = cpx.indicator_constraints.get_num()
     if not nind_new == nind_old:
         print("WARNING: number of indicator constraints changed.")

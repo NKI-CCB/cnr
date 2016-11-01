@@ -1,11 +1,9 @@
 """Classes and functions to store and analyze CNR optimization results."""
 
+import re
+import sympy
 import numpy as np
 import pandas as pd
-import re
-# import sys
-# import scipy
-import sympy
 import cnr.cplexutils
 import cnr.maxlikelysol
 from cnr.data import PerturbationPanel
@@ -52,7 +50,8 @@ class CnrResult(PerturbationPanel):
     -------
     add_maxlikelysol
     """
-
+    # pylint: disable=too-many-instance-attributes
+    # Eight is reasonable in this case.
     def __init__(self, p, solidx=0):
         """Initialilize object."""
         PerturbationPanel.__init__(
@@ -92,19 +91,19 @@ class CnrResult(PerturbationPanel):
     def allowed_deviations(self):
         """Return indicator variables relating to difference between lines."""
         return {var: self.vardict[var] for var in self.vardict.keys()
-                if (var.startswith('IDev_') or 
+                if (var.startswith('IDev_') or
                     var.startswith('IrpDev_') or
                     var.startswith('IrpDSDev_'))}
 
     @property
     def mssr(self):
         """Return mean sum of squares of residuals."""
-        s = 0
+        mean_ssr = 0
         for cl in self.cell_lines:
             n_res = np.size(self.residuals[cl])
-            s += np.sum(np.array(np.square(self.residuals[cl]))) / n_res
-        s = s / len(self.cell_lines)
-        return s
+            mean_ssr += np.sum(np.array(np.square(self.residuals[cl]))) / n_res
+        mean_ssr = mean_ssr / len(self.cell_lines)
+        return mean_ssr
 
     def add_maxlikelysol(self, method=None, options=None):
         """Add  MaxLikelySol instance.
@@ -138,8 +137,8 @@ class CnrResult(PerturbationPanel):
 
         for i in indicators:
             info = i.split('_')
-            assert info[0] in ['IDev', 'IrpDev', 'IrpDSDev'], (str(i) +
-                                                   ' has unexpected form')
+            assert info[0] in ['IDev', 'IrpDev', 'IrpDSDev'], str(
+                i) + ' has unexpected form'
             if info[0] == 'IDev':
                 vars_lst = ['_'.join(['r', cl] + info[1:]) for cl in
                             self.cell_lines]
@@ -196,24 +195,24 @@ class CnrResult(PerturbationPanel):
             bounds[name] = (lower, upper)
         return bounds
 
-    def _extract_meta_info(self, p):
+    def _extract_meta_info(self, prob):
         meta_info = dict()
-        meta_info['eta'] = p.eta
-        meta_info['theta'] = p.theta
-        if p.maxints:
-            meta_info['maxints'] = p.maxints
-        if p.maxdevs:
-            meta_info['maxdevs'] = p.maxdevs
-        if p.prior_network:
-            meta_info['maxints'] = len(p.prior_network)
+        meta_info['eta'] = prob.eta
+        meta_info['theta'] = prob.theta
+        if prob.maxints:
+            meta_info['maxints'] = prob.maxints
+        if prob.maxdevs:
+            meta_info['maxdevs'] = prob.maxdevs
+        if prob.prior_network:
+            meta_info['maxints'] = len(prob.prior_network)
         return meta_info
 
     def _gen_deviations_dict(self, cpx, solidx):
         dev_dict = {}
-        for cl in self._cell_lines:
-            dev_dict[cl] = _get_deviations_from_cpx(cpx, self._nodes,
-                                                    prefix=cl,
-                                                    solidx=solidx)
+        for cline in self._cell_lines:
+            dev_dict[cline] = _get_deviations_from_cpx(cpx, self._nodes,
+                                                       prefix=cline,
+                                                       solidx=solidx)
         return dev_dict
 
 
@@ -268,20 +267,20 @@ class CnrResultPool(PerturbationPanel):
         """Add solution that minimizes the error."""
         for solidx in range(self.nsols):
             print('Finding min error solution for solution ' + str(solidx) +
-                  ' of ' + str(self._nSols))
+                  ' of ' + str(self.nsol))
             self.solutions[solidx].add_maxlikelysol()
 
-    def _extract_meta_info(self, p):
-        metaInfo = dict()
-        metaInfo['eta'] = p.eta
-        metaInfo['theta'] = p.theta
-        if p.maxints:
-            metaInfo['maxints'] = p.maxints
-        if p.maxdevs:
-            metaInfo['maxdevs'] = p.maxdevs
-        if p.prior_network:
-            metaInfo['maxints'] = len(p.prior_network)
-        return metaInfo
+    def _extract_meta_info(self, prob):
+        meta_info = dict()
+        meta_info['eta'] = prob.eta
+        meta_info['theta'] = prob.theta
+        if prob.maxints:
+            meta_info['maxints'] = prob.maxints
+        if prob.maxdevs:
+            meta_info['maxdevs'] = prob.maxdevs
+        if prob.prior_network:
+            meta_info['maxints'] = len(prob.prior_network)
+        return meta_info
 
 
 ##############################################################################
@@ -345,15 +344,19 @@ def _get_rloc_from_cpx(cpx, nodes, prefix=None, solidx=0):
     -------
     Square pandas.DataFrame
     """
-    BASE = "r"
+
+    # pylint: disable=too-many-instance-attributes
+    # Eight is reasonable in this case.
+
+    base = "r"
     if prefix:
         assert isinstance(prefix, str)
-        BASE = "_".join([BASE, prefix])
+        base = "_".join([base, prefix])
     assert cpx.solution.is_primal_feasible()
     assert solidx < cpx.solution.pool.get_num()
 
     allvars = cpx.variables.get_names()
-    vars_lst = [var for var in allvars if var.startswith(BASE + '_')]
+    vars_lst = [var for var in allvars if var.startswith(base + '_')]
     vars_vals = cpx.solution.pool.get_values(solidx, vars_lst)
     vars_dict = dict(zip(vars_lst, vars_vals))
 
@@ -477,26 +480,26 @@ def _get_residuals_from_cpx(cpx, nodes, perts, prefix=None, solidx=0):
     solidx : int. (optional)
         Used to select solution from solution pool
     """
-    BASE = "res"
+    base = "res"
     if prefix:
         assert type(prefix) == str
-        BASE = "_".join([BASE, prefix])
+        base = "_".join([base, prefix])
     assert cpx.solution.is_primal_feasible()
     assert solidx < cpx.solution.pool.get_num()
 
     allvars = cpx.variables.get_names()
-    vars_lst = [var for var in allvars if var.startswith(BASE)]
+    vars_lst = [var for var in allvars if var.startswith(base)]
     vars_vals = cpx.solution.pool.get_values(solidx, vars_lst)
     vars_dict = dict(zip(vars_lst, vars_vals))
 
-    Nn = len(nodes)
-    Np = len(vars_lst) // len(nodes)
-    assert Np == len(vars_lst) / len(nodes)
+    nn = len(nodes)
+    npars = len(vars_lst) // len(nodes)
+    assert npars == len(vars_lst) / len(nodes)
 
-    mat = np.array([0] * Nn * Np, dtype=sympy.Symbol).reshape(Nn, Np)
-    for i in range(Nn):
-        for j in range(Np):
-            var = '_'.join([BASE, nodes[i], str(j)])
+    mat = np.array([0] * nn * npars, dtype=sympy.Symbol).reshape(nn, npars)
+    for i in range(nn):
+        for j in range(npars):
+            var = '_'.join([base, nodes[i], str(j)])
             mat[i][j] = vars_dict[var]
 
     df = pd.DataFrame(data=mat, index=nodes, columns=perts)
