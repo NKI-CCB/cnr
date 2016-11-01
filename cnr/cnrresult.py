@@ -57,7 +57,7 @@ class CnrResult(PerturbationPanel):
         """Initialilize object."""
         PerturbationPanel.__init__(
             self, nodes=p.nodes, perts=p.perts, pert_annot=p.pert_annot,
-            rglob=p.rglob)
+            ds_acting_perts=p.ds_acting_perts, rglob=p.rglob)
 
         self.vardict = self._gen_vardict(p.cpx, solidx)
         self.objective_value = p.cpx.solution.pool.get_objective_value(solidx)
@@ -92,7 +92,9 @@ class CnrResult(PerturbationPanel):
     def allowed_deviations(self):
         """Return indicator variables relating to difference between lines."""
         return {var: self.vardict[var] for var in self.vardict.keys()
-                if (var.startswith('IDev_') or var.startswith('IrpDev_'))}
+                if (var.startswith('IDev_') or 
+                    var.startswith('IrpDev_') or
+                    var.startswith('IrpDSDev_'))}
 
     @property
     def mssr(self):
@@ -136,7 +138,7 @@ class CnrResult(PerturbationPanel):
 
         for i in indicators:
             info = i.split('_')
-            assert info[0] in ['IDev', 'IrpDev'], (str(i) +
+            assert info[0] in ['IDev', 'IrpDev', 'IrpDSDev'], (str(i) +
                                                    ' has unexpected form')
             if info[0] == 'IDev':
                 vars_lst = ['_'.join(['r', cl] + info[1:]) for cl in
@@ -152,6 +154,13 @@ class CnrResult(PerturbationPanel):
                 vars_vals.append(np.mean(vars_vals))
                 df.ix[i] = vars_vals
                 names.append('_'.join(['rp'] + info[1:]))
+            elif info[0] == 'IrpDSDev':
+                vars_lst = ['_'.join(['rpDS', cl] + info[1:]) for
+                            cl in self.cell_lines]
+                vars_vals = [self.vardict[v] for v in vars_lst]
+                vars_vals.append(np.mean(vars_vals))
+                df.ix[i] = vars_vals
+                names.append('_'.join(['rpDS'] + info[1:]))
         df.index = names
         return df.sort_index()
 
@@ -387,7 +396,7 @@ def _get_rpert_from_cpx(cpx, rp_sym, nodes, colnames, solidx=0):
     assert cpx.solution.is_primal_feasible()
 
     allvars = cpx.variables.get_names()
-    vars_lst = [var for var in allvars if var.startswith('rp_')]
+    vars_lst = [var for var in allvars if var.startswith('rp')]
     vars_vals = cpx.solution.pool.get_values(solidx, vars_lst)
     vars_dict = dict(zip(vars_lst, vars_vals))
 
@@ -397,6 +406,7 @@ def _get_rpert_from_cpx(cpx, rp_sym, nodes, colnames, solidx=0):
 
     for ix, jx in zip(*np.nonzero(rp_sym)):
         for symbol in rp_sym[ix][jx].free_symbols:
+            # print(symbol)
             mat[ix][jx] += vars_dict[str(symbol)]
 
     df = pd.DataFrame(mat)

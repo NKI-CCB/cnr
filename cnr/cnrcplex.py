@@ -17,24 +17,26 @@ def _add_direct_target(nodes, pert_name, target, base_name):
     to_add[indx] += sympy.Symbol('_'.join([base_name, pert_name, target]))
     return to_add
 
+
 def _add_downstream_effect(nodes, pert_name, pert_target, prior_network, base_name):
     to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
-     # If restricted to prior network
+    # If restricted to prior network
     if prior_network:
         for ds_target, source in prior_network:
             if source == pert_target:
                 indx = nodes.index(ds_target)
                 to_add[indx] += sympy.Symbol(
-                    '_'.join([base_name, pert_name+'@'+source, ds_target]))
+                    '_'.join([base_name, pert_name, ds_target]))
     else:
         downstream_nodes = set(nodes) - set([pert_target])
         for ds_target in downstream_nodes:
             indx = nodes.index(ds_target)
             to_add[indx] += sympy.Symbol(
-                '_'.join([base_name, pert_name+'@'+pert_target, ds_target]))
+                '_'.join([base_name, pert_name, ds_target]))
     return to_add
 
-def generate_rpert_symbols(nodes, perturbations, pert_annot, ds_acting_perts, 
+
+def generate_rpert_symbols(nodes, perturbations, pert_annot, ds_acting_perts,
                            prior_network=None, prefix=""):
     """"Generate matrix containing perturbations as symbols.
 
@@ -67,17 +69,24 @@ def generate_rpert_symbols(nodes, perturbations, pert_annot, ds_acting_perts,
 
         for pert_name in pert_name_lst:
             pert_target = pert_annot[pert_name]
+
             # Add direct targets effects
-            new_pert += _add_direct_target(nodes, pert_name, pert_target, base)
+            if pert_name not in ds_acting_perts:
+                new_pert += _add_direct_target(nodes,
+                                               pert_name, pert_target, base)
 
             # Add indirect effects
-            if pert_name in ds_acting_perts:
+            # if pert_name in ds_acting_perts:
+            else:
+                # if pert_name in ds_acting_perts:
+                # print("Indirect: " + pert_name + ' ' + pert_target)
                 new_pert += _add_downstream_effect(
                     nodes, pert_name, pert_target, prior_network, baseds
-                    )
+                )
         rpert_sym = np.append(rpert_sym, new_pert, axis=1)
 
     return rpert_sym
+
 
 def generate_rloc_symbols(nodes, prior_network, prefix=None):
     """"Generate matrix containing local response coefficients as symbols.
@@ -219,6 +228,8 @@ class CnrProblem(PerturbationPanel):
         self._rpert_dict = self._gen_rpert()
         self._rloc_vars = self._gen_rloc_vars()
         self._rp_vars = self._gen_rp_vars()
+        self._rpds_vars = [rp for rp in self._rp_vars if rp.split("_")[
+            0] == 'rpDS']
         self._indicators = generate_indicators(self.nodes, self._prior)
         self._dev_indicators = generate_indicators(self.nodes, self._prior,
                                                    base='IDev')
@@ -257,11 +268,12 @@ class CnrProblem(PerturbationPanel):
 
     def _gen_rpert(self):
         rpdict = dict()
+
         for name in self.cell_lines:
             rpdict[name] = generate_rpert_symbols(
                 self.nodes, self.perts, self.pert_annot,
-                self._ds_acting_perts, prefix=name, prior_network = self._prior
-                )
+                self._ds_acting_perts, prefix=name, prior_network=self._prior
+            )
         return rpdict
 
     def _gen_rloc_vars(self):
@@ -292,7 +304,21 @@ class CnrProblem(PerturbationPanel):
     def _gen_rp_indicators(self):
         indicator_list = []
         for rpvar in self._rp_vars:
-            indicator_list.append('IrpDev_' + '_'.join(rpvar.split('_')[2:]))
+            rpvar_elements = rpvar.split('_')
+            # rpvar is expected to have the form:
+            # rp_cellline_pertname_node or rpDS_cellline_pertname_node
+            assert rpvar_elements[0] in {'rp', "rpDS"}, (rpvar +
+                                                         ' has unexpected form')
+            assert rpvar_elements[1] in self.cell_lines
+            assert rpvar_elements[2] in self.pert_annot.keys()
+            assert rpvar_elements[3] in self.nodes
+
+            if rpvar_elements[0] == "rp":
+                indicator_list.append(
+                    'IrpDev_' + '_'.join(rpvar.split('_')[2:]))
+            else:
+                indicator_list.append(
+                    'IrpDSDev_' + '_'.join(rpvar.split('_')[2:]))
         return list(set(indicator_list))
 
     def set_edge_sign(self, edge, sign):
@@ -323,8 +349,9 @@ class CnrProblem(PerturbationPanel):
         """Restrict edge to be positive or negative.
 
         Input:
-        pert: tuple or list of tuples to set the sign. Tuple should be
-            (perturbation name, perturbation target), e.g. ('plx', 'MEK')
+        pert: tuple or list of tuples 
+            Tuple should be (perturbation name, perturbation target), e.g.
+            ('plx', 'MEK')
         sign: string, 'pos' or 'neg'
         """
         varnames = []
@@ -332,8 +359,13 @@ class CnrProblem(PerturbationPanel):
             pert = [pert]
 
         for p in pert:
+            assert p[0] in self.pert_annot.keys()
+            assert p[1] in self.nodes
             for cln in self.cell_lines:
-                varnames.append('_'.join(['rp', cln, p[0], p[1]]))
+                if p[0] in self._ds_acting_perts:
+                    varnames.append('_'.join(['rpDS', cln, p[0], p[1]]))
+                else:
+                    varnames.append('_'.join(['rp', cln, p[0], p[1]]))
 
         if sign == 'pos':
             cnr.cplexutils.set_vars_positive(self.cpx, varnames)
@@ -354,11 +386,11 @@ class CnrProblem(PerturbationPanel):
         #
 
         # Add local response coefficients as variables
-        Nrloc = len(self._rloc_vars)
+        n_rloc = len(self._rloc_vars)
         cpx.variables.add(names=self._rloc_vars,
-                          types=[cpx.variables.type.continuous] * Nrloc,
-                          lb=[-self._r_bounds] * Nrloc,
-                          ub=[self._r_bounds] * Nrloc)
+                          types=[cpx.variables.type.continuous] * n_rloc,
+                          lb=[-self._r_bounds] * n_rloc,
+                          ub=[self._r_bounds] * n_rloc)
 
         # Add diagonal element of r matrix
         cpx.variables.add(names=['r_i_i'],
@@ -366,11 +398,11 @@ class CnrProblem(PerturbationPanel):
                           lb=[-1.], ub=[-1.])
 
         # Add perturbations as variables
-        Nrp = len(self._rp_vars)
+        n_rp = len(self._rp_vars)
         cpx.variables.add(names=self._rp_vars,
-                          types=[cpx.variables.type.continuous] * Nrp,
-                          lb=[-self._rp_bounds] * Nrp,
-                          ub=[self._rp_bounds] * Nrp)
+                          types=[cpx.variables.type.continuous] * n_rp,
+                          lb=[-self._rp_bounds] * n_rp,
+                          ub=[self._rp_bounds] * n_rp)
 
         # Add indicator constraint as variables
         Ni = len(self._indicators)
@@ -559,9 +591,32 @@ class CnrProblem(PerturbationPanel):
             assert r_elements[1] in self.cell_lines
             assert r_elements[2] in self.nodes and r_elements[3] in self.nodes
             ivar = '_'.join(["I", r_elements[2], r_elements[3]])
+            assert ivar in self._indicators
             name = '_'.join(["Ind", r_elements[1], r_elements[2],
                              r_elements[3]])
             constr = cplex.SparsePair(ind=[rvar], val=[1.])
+            cpx.indicator_constraints.add(indvar=ivar,
+                                          complemented=1,
+                                          rhs=0., sense='E',
+                                          lin_expr=constr,
+                                          name=name)
+
+        # ---------------------------------------------------------------------
+        # Construct indicator constraints for presence dowstream perturbation
+        # effects
+        for rpdsvar in self._rpds_vars:
+            # rpDSvar is expected to have form rpDS_cellline_pert_nodej
+            rpds_elements = rpdsvar.split("_")
+            assert len(rpds_elements) == 4
+            assert rpds_elements[0] == 'rpDS'
+            assert rpds_elements[1] in self.cell_lines
+            assert rpds_elements[2] in self.pert_annot.keys()
+            assert rpds_elements[3] in self.nodes
+            ivar = '_'.join(['I', rpds_elements[3],
+                             self.pert_annot[rpds_elements[2]]])
+            assert ivar in self._indicators
+            name = '_'.join(['Irpsd'] + rpds_elements[1:])
+            constr = cplex.SparsePair(ind=[rpdsvar], val=[1.])
             cpx.indicator_constraints.add(indvar=ivar,
                                           complemented=1,
                                           rhs=0., sense='E',
@@ -591,15 +646,21 @@ class CnrProblem(PerturbationPanel):
         # mean
         for rpdev in self._rpdev_vars:
             # rpdev is expected to have form:
-            # rpdev_rp_cellline_perturbation_targetnode
+            # rpdev_rp_cellline_perturbation_targetnode or
+            # rpdev_rpDS_cellline_perturbation_targetnode
+            dev_type = rpdev.split('_')[1]
             dev_elements = rpdev.split('_')[2:]
 
-            # TODO disallow spaces in names
+            # todo disallow spaces in names
             # will give problems when using cplex.write(), which subsititutes
             # spaces with underscores
 
             assert len(dev_elements) == 3, rpdev + " has unexpected form"
-            ivar = '_'.join(['IrpDev'] + dev_elements[1:])
+            assert dev_type in {'rp', 'rpDS'}, rpdev + " has unexpected form"
+            if dev_type == 'rp':
+                ivar = '_'.join(['IrpDev'] + dev_elements[1:])
+            elif dev_type == 'rpDS':
+                ivar = '_'.join(['IrpDSDev'] + dev_elements[1:])
             assert ivar in self._rp_indicators, ivar + " has unexpected form"
             name = '_'.join(['IndRpDev'] + dev_elements)
             constr = cplex.SparsePair(ind=[rpdev], val=[1.])

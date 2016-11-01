@@ -85,16 +85,16 @@ def set_rhs_indicator(cpx, newval):
 def set_vars_positive(cpx, var_names):
     """"Restrict variables to be positive."""
     lbounds = []
-    for n in var_names:
-        assert n in cpx.variables.get_names()
-        lbounds.append((n, 0.))
+    for name in var_names:
+        assert name in cpx.variables.get_names()
+        lbounds.append((name, 0.))
     cpx.variables.set_lower_bounds(lbounds)
 
 
 def set_vars_negative(cpx, var_names):
     """"Restrict variables to be negative."""
     ubounds = []
-    for n in var_names:
-        assert n in cpx.variables.get_names()
-        ubounds.append((n, 0.))
+    for name in var_names:
+        assert name in cpx.variables.get_names()
+        ubounds.append((name, 0.))
     cpx.variables.set_upper_bounds(ubounds)

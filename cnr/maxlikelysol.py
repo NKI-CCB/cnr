@@ -33,6 +33,7 @@ class MaxLikelySol:
         self.rloc = optsol['rloc']
         self.rpert = optsol['rpert']
         self.optimize_result = optsol['result']
+        self._optvar_dict = optsol['optvars']
         self._rglob = sol.rglob
         self._nodes = sol.nodes
         self._cell_lines = sol.cell_lines
@@ -66,20 +67,31 @@ class MaxLikelySol:
 
         for i in indicators:
             info = i.split('_')
-            assert info[0] in ['IDev', 'IrpDev'], (str(i) +
-                                                   ' has unexpected form')
+            assert info[0] in ['IDev', 'IrpDev', 'IrpDSDev'], (
+                str(i) + ' has unexpected form')
             if info[0] == 'IDev':
-                vars_vals = [self.rloc[cl][info[2]][info[1]]
-                             for cl in self._cell_lines]
+                vars_lst = ['_'.join(['r', cl] + info[1:]) for cl in
+                            self._cell_lines]
+                # vars_vals = [self.rloc[cl][info[2]][info[1]]
+                #              for cl in self._cell_lines]
+                vars_vals = [self._optvar_dict[v] for v in vars_lst]
                 vars_vals.append(np.mean(vars_vals))
                 df.ix[i] = vars_vals
                 names += [('_'.join(['r'] + info[1:]))]
             elif info[0] == 'IrpDev':
-                vars_vals = [self.rpert[cl][info[1]][info[2]]
-                             for cl in self._cell_lines]
+                vars_lst = ['_'.join(['rp', cl] + info[1:]) for
+                            cl in self._cell_lines]
+                vars_vals = [self._optvar_dict[v] for v in vars_lst]
                 vars_vals.append(np.mean(vars_vals))
                 df.ix[i] = vars_vals
                 names.append('_'.join(['rp'] + info[1:]))
+            elif info[0] == 'IrpDSDev':
+                vars_lst = ['_'.join(['rpDS', cl] + info[1:]) for
+                            cl in self._cell_lines]
+                vars_vals = [self._optvar_dict[v] for v in vars_lst]
+                df.ix[i] = vars_vals
+                names.append('_'.join(['rpDS'] + info[1:]))
+
         df.index = names
         return df.sort_index()
 
@@ -124,6 +136,9 @@ def calculate_maxlikely_sol(sol, solidx=0, method=None, options=None):
     perturbations_same = []
     perturbations_diff = []
 
+    perturbations_ds_same = []
+    perturbations_ds_diff = []
+
     for key, val in sol.allowed_deviations.items():
         i_nodes = key.split('_')[1:]
         if key.startswith('IDev'):
@@ -135,14 +150,23 @@ def calculate_maxlikely_sol(sol, solidx=0, method=None, options=None):
             elif i_indicator == 0:
                 pass
             else:
-                sys.exit()
+                raise ValueError("Indicator " + str(key) + " not in {0, 1}")
         elif key.startswith('IrpDev'):
             if val == 0.:
                 perturbations_same.append(i_nodes)
             elif val == 1.:
                 perturbations_diff.append(i_nodes)
             else:
-                sys.exit()
+                raise ValueError("Indicator " + str(key) + " not in {0, 1}")
+        elif key.startswith('IrpDSDev'):
+            if val == 0.:
+                perturbations_ds_same.append(i_nodes)
+            elif val == 1.:
+                perturbations_ds_diff.append(i_nodes)
+            else:
+                raise ValueError("Indicator " + str(key) + " not in {0, 1}")
+        else:
+            raise ValueError("Indicator" + str(key) + " not recognized")
 
     init = []
     varnames = []
@@ -168,6 +192,16 @@ def calculate_maxlikely_sol(sol, solidx=0, method=None, options=None):
             init_rp.append(
                 sol.vardict['_'.join(['rp', cell_line] + pert)])
             varnames_rp.append('_'.join(['rp', cell_line] + pert))
+
+    for pert in perturbations_ds_same:
+        init_rp.append(sol.vardict['_'.join(['rpDS', cell_lines[0]] + pert)])
+        varnames_rp.append('_'.join(['rpDS', 'MEAN'] + pert))
+
+    for pert in perturbations_ds_diff:
+        for cell_line in cell_lines:
+            init_rp.append(
+                sol.vardict['_'.join(['rpDS', cell_line] + pert)])
+            varnames_rp.append('_'.join(['rpDS', cell_line] + pert))
 
     # Add bounds to variables
     # bounds = [(-bound, bound) for i in range(len(init + init_rp))]
@@ -199,17 +233,17 @@ def calculate_maxlikely_sol(sol, solidx=0, method=None, options=None):
         if var.split('_')[0] == 'r':
             rvals_opt.append(val)
             rvar_names.append(var)
-        elif var.split('_')[0] == 'rp':
+        elif var.split('_')[0] in {'rp', 'rpDS'}:
             rpvals_opt.append(val)
             rpvar_names.append(var)
         else:
-            sys.exit(var + ' is invalid variable name')
+            raise ValueError(var + ' is invalid variable name')
 
     rloc_dict = _construct_rloc_matrices(
         rvals_opt, rvar_names, nodes, cell_lines
     )
     rpert_dict = _construct_rpert_matrices(
-        rpvals_opt, rpvar_names, nodes, cell_lines, rpert_symbols
+        rpvals_opt, rpvar_names, cell_lines, rpert_symbols
     )
 
     for cl, rloc in rloc_dict.items():
@@ -219,7 +253,10 @@ def calculate_maxlikely_sol(sol, solidx=0, method=None, options=None):
         cols = sol.rglob[cl].columns
         rpert_dict[cl] = pd.DataFrame(data=rpert, index=nodes, columns=cols)
 
-    return {'rloc': rloc_dict, 'rpert': rpert_dict, 'result': opt}
+    optvar_dict = dict(zip(rvar_names + rpvar_names,
+                           rvals_opt + rpvals_opt))
+    return {'rloc': rloc_dict, 'rpert': rpert_dict, 'result': opt,
+            'optvars': optvar_dict}
 
 
 def _construct_rloc_matrices(vals, varnames, nodes, cell_lines):
@@ -231,21 +268,21 @@ def _construct_rloc_matrices(vals, varnames, nodes, cell_lines):
 
     # Fill matrices with specified values
     for var, val in vars_dict.items():
-        cl = var.split('_')[1]
+        cell_line = var.split('_')[1]
         idx_i = nodes.index(var.split('_')[2])
         idx_j = nodes.index(var.split('_')[3])
-        if cl == 'MEAN':
+        if cell_line == 'MEAN':
             for rloc in rloc_dict.values():
                 rloc[idx_i][idx_j] = val
-        elif cl in cell_lines:
+        elif cell_line in cell_lines:
             rloc_dict[cl][idx_i][idx_j] = val
         else:
-            sys.exit(cl + ' is not a valid cell line name')
+            raise ValueError(cell_line + ' is not a valid cell line name')
 
     return rloc_dict
 
 
-def _construct_rpert_matrices(vals, varnames, nodes, cell_lines,
+def _construct_rpert_matrices(vals, varnames, cell_lines,
                               rpert_symbols):
 
     vars_dict = dict()
@@ -253,24 +290,24 @@ def _construct_rpert_matrices(vals, varnames, nodes, cell_lines,
         if var.split('_')[1] in cell_lines:
             vars_dict[var] = val
         elif var.split('_')[1] == 'MEAN':
-            for cl in cell_lines:
-                vars_dict[var.replace('MEAN', cl)] = val
+            for cell_line in cell_lines:
+                vars_dict[var.replace('MEAN', cell_line)] = val
         else:
-            sys.exit(cl + ' is invalid cell line name')
+            raise ValueError(cell_line + ' is invalid cell line name')
 
     rp_dict = dict()
-    for cl, rp_sym in rpert_symbols.items():
-        nn = np.shape(rp_sym)[0]
+    for cell_line, rp_sym in rpert_symbols.items():
+        nnodes = np.shape(rp_sym)[0]
         npert = np.shape(rp_sym)[1]
 
-        mat = np.array([0.] * nn * npert).reshape(nn, npert)
+        mat = np.array([0.] * nnodes * npert).reshape(nnodes, npert)
 
         for ix, jx in zip(*np.nonzero(rp_sym)):
 
             for sym in rp_sym[ix][jx].free_symbols:
                 mat[ix][jx] += vars_dict[str(sym)]
 
-        rp_dict[cl] = mat
+        rp_dict[cell_line] = mat
 
     return rp_dict
 
@@ -287,15 +324,14 @@ def _construct_objective_function(vals, varnames, nodes, cell_lines, rglobs,
         if var.split('_')[0] == 'r':
             rvals.append(val)
             rvar_names.append(var)
-        elif var.split('_')[0] == 'rp':
+        elif var.split('_')[0] in {'rp', 'rpDS'}:
             rpvals.append(val)
             rpvar_names.append(var)
         else:
-            sys.exit(var + ' is invalid variable name')
-    rlocs = _construct_rloc_matrices(rvals, rvar_names, nodes,
-                                     cell_lines)
+            raise ValueError(var + ' is invalid variable name')
+    rlocs = _construct_rloc_matrices(rvals, rvar_names, nodes, cell_lines)
     rperts = _construct_rpert_matrices(
-        vals=rpvals, varnames=rpvar_names, nodes=nodes, cell_lines=cell_lines,
+        vals=rpvals, varnames=rpvar_names, cell_lines=cell_lines,
         rpert_symbols=rpert_symbols)
     rglob_predicted = cnr.cnrutils.predict_response(rlocs, rperts)
     err = 0
