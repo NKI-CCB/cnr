@@ -52,6 +52,7 @@ class CnrResult(PerturbationPanel):
     """
     # pylint: disable=too-many-instance-attributes
     # Eight is reasonable in this case.
+
     def __init__(self, p, solidx=0):
         """Initialilize object."""
         PerturbationPanel.__init__(
@@ -229,46 +230,71 @@ class CnrResultPool(PerturbationPanel):
 
     Attributes
     ----------
-    nodes : list
-
-    perts : list of lists
-
-    rglob : dict of pd.DataFrame
-
-    nsols : int
-        Number of solution in the solution pool.
-
     solutions : dict of CnrResult
         holds the actual model solutions
 
     objective_values : dict
         keys are solution ids
 
+    meta_info : dict
+        parameters of CNR optimization used
+
     Methods
     -------
     add_maxlikelysols()
+
+    filter_solutions(cutoff = 1.1)
     """
 
     def __init__(self, p):
         """Initialize with solved CnrProblem object."""
         assert p.cpx.solution.is_primal_feasible(), """p has no solution. Try
-            p.cpx.solve() and ppopulate_solution_pool()"""
+            p.cpx.solve() and p.populate_solution_pool()"""
         PerturbationPanel.__init__(
             self, nodes=p.nodes, perts=p.perts, pert_annot=p.pert_annot,
-            rglob=p.rglob)
-        self.nsols = p.cpx.solution.pool.get_num()
+            ds_acting_perts=p.ds_acting_perts, rglob=p.rglob)
         self.solutions = {solidx: CnrResult(p, solidx=solidx) for solidx in
-                          range(self.nsols)}
-        self.objective_values = {solidx: self.solutions[solidx].objective_value
-                                 for solidx in range(self.nsols)}
+                          range(p.cpx.solution.pool.get_num())}
         self.meta_info = self._extract_meta_info(p)
+
+    @property
+    def nsols(self):
+        """Number of solutions currently in solution pool."""
+        return len(self.solutions)
+
+    @property
+    def objective_values(self):
+        """Dict with solution IDs as keys and objective values as values."""
+        return {solidx: sol.objective_value for solidx, sol in
+                self.solutions.items()}
 
     def add_maxlikelysols(self):
         """Add solution that minimizes the error."""
         for solidx in range(self.nsols):
             print('Finding min error solution for solution ' + str(solidx) +
-                  ' of ' + str(self.nsol))
+                  ' of ' + str(self.nsols))
             self.solutions[solidx].add_maxlikelysol()
+
+    def filter_solutions(self, cutoff=1.1):
+        """Remove solution with an objective value > cutoff * best_obj from dict.
+
+        Parameters:
+        ----------
+        cutoff : float > 1
+            Default = 1.1
+        """
+        assert cutoff > 1, 'Cutoff should be > 1'
+        best_objective_value = self.objective_values[0]
+        nsols_pre = self.nsols
+        removed = 0
+        for solidx, objective_val in self.objective_values.items():
+            if objective_val > cutoff * best_objective_value:
+                removed += 1
+                del self.solutions[solidx]
+        nsols_post = self.nsols
+        assert nsols_post + removed == nsols_pre
+        print(str(removed) + ' of ' + str(nsols_pre) +
+              ' solutions removed from solution pool.')
 
     def _extract_meta_info(self, prob):
         meta_info = dict()
