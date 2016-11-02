@@ -70,7 +70,8 @@ class CnrResult(PerturbationPanel):
         self.bounds = self._get_bounds_from_cpx(p.cpx)
         self.residuals = {
             cl: _get_residuals_from_cpx(
-                p.cpx, self.nodes, self.rglob[cl].columns, prefix=cl
+                p.cpx, self.nodes, self.rglob[cl].columns, prefix=cl,
+                solidx=solidx
             ) for cl in self.cell_lines
         }
         self.meta_info = self._extract_meta_info(p)
@@ -270,10 +271,15 @@ class CnrResultPool(PerturbationPanel):
 
     def add_maxlikelysols(self):
         """Add solution that minimizes the error."""
-        for solidx in range(self.nsols):
-            print('Finding min error solution for solution ' + str(solidx) +
-                  ' of ' + str(self.nsols))
-            self.solutions[solidx].add_maxlikelysol()
+        # ids = self.solutions.keys()
+        print('Finding min error solution for ' +
+              str(self.nsols) + ' solutions:')
+        counter = 0
+        for solidx, sol in self.solutions.items():
+            counter += 1
+            print('Optimizing solution id: ' + str(solidx) +
+                  ', index: ' + str(counter))
+            sol.add_maxlikelysol()
 
     def filter_solutions(self, cutoff=1.1):
         """Remove solution with an objective value > cutoff * best_obj from dict.
