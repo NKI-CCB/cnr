@@ -27,7 +27,7 @@ def set_rhs_linear(cpx, newval):
                    neither upper nor lower bound""")
 
 
-def set_indicator_active(cpx, indicator):
+def set_indicator_status(cpx, indicator, status):
     """Set indicator constraint = 1.
 
     This can be used to force interactions to be present in a network
@@ -42,11 +42,19 @@ def set_indicator_active(cpx, indicator):
     """
     assert indicator in cpx.variables.get_names(), indicator + " is not a \
     variable"
-    assert cpx.variables.get_types(indicator) == "B", indicator + " is not a \
-        binary variable"
-    assert cpx.variables.get_upper_bounds(indicator) == 1, indicator + \
-        " is already set inactive, cannot be set to active"
-    cpx.variables.set_lower_bounds(indicator, 1)
+    # assert cpx.variables.get_types(indicator) == "B", indicator + " is not a \
+    #   binary variable"
+    if status == 1:
+        assert cpx.variables.get_upper_bounds(indicator) == 1, indicator + \
+            " is already set inactive, cannot be set to active"
+        cpx.variables.set_lower_bounds(indicator, 1)
+    elif status == 0:
+        assert cpx.variables.get_lower_bounds(indicator) == 0, indicator + \
+            " is already set active, cannot be set to inactive"
+        cpx.variables.set_upper_bounds(indicator, 0)
+    else:
+        raise ValueError("status should be either 1 or 0.")
+    
 
 
 def set_rhs_indicator(cpx, newval):
@@ -86,7 +94,7 @@ def set_vars_positive(cpx, var_names):
     """"Restrict variables to be positive."""
     lbounds = []
     for name in var_names:
-        assert name in cpx.variables.get_names()
+        assert name in cpx.variables.get_names(), name + ' not a variable'
         lbounds.append((name, 0.))
     cpx.variables.set_lower_bounds(lbounds)
 
@@ -95,6 +103,7 @@ def set_vars_negative(cpx, var_names):
     """"Restrict variables to be negative."""
     ubounds = []
     for name in var_names:
-        assert name in cpx.variables.get_names()
+        assert name in cpx.variables.get_names(), name + ' not a variable'
         ubounds.append((name, 0.))
     cpx.variables.set_upper_bounds(ubounds)
+

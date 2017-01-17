@@ -31,6 +31,7 @@ def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
                                    'fontweight': "bold"})
         ax.tick_params(labelsize=figwidth * .8)
 
+
 def graph_from_sol(sol, cl, widthfactor=10):
     """Generate graph from complete solution.
 
@@ -45,15 +46,19 @@ def graph_from_sol(sol, cl, widthfactor=10):
     """
     baseRp = 'rp_' + cl
     baseR = 'r_' + cl
+    baseRpDS = 'rpDS_' + cl
     g = nx.DiGraph()
     # Go over all variables from the solution.
     for var, val in sol.vardict.items():
         # Treat perturbations and interactions seperately.
-        if var.startswith(baseRp):
+        if var.startswith(baseRp) or var.startswith(baseRpDS):
             assert len(var.split('_')) == 4
             pert = var.split('_')[2]
             node = var.split('_')[3]
-            ind_name = '_'.join(['IrpDev', pert, node])
+            if var.startswith(baseRp):
+                ind_name = '_'.join(['IrpDev', pert, node])
+            else:
+                ind_name = '_'.join(['IrpDSDev', pert, node])
             # Color according to sign of perturbation.
             if val > 0:
                 col = 'green'

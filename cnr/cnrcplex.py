@@ -321,6 +321,51 @@ class CnrProblem(PerturbationPanel):
                     'IrpDSDev_' + '_'.join(rpvar.split('_')[2:]))
         return list(set(indicator_list))
 
+    def merge_indicators(self, to_merge, merged_indicator_name):
+        """ONLY WORKS FOR PERTURBATIONS."""
+        indicators_to_merge = []
+        # Find names of indicators to use.
+        for ind in self._rp_indicators:
+            pert = ind.split('_')[1]
+            if pert in to_merge:
+                ind = indicators_to_merge.append(ind)
+        assert len(indicators_to_merge) == len(to_merge)
+
+        self.cpx.variables.add(names=[merged_indicator_name],
+                               types=[self.cpx.variables.type.binary],
+                               lb=[0], ub=[1], obj=[self._theta])
+
+        # Change objective coefficients of merged indicators
+        ind_seq = [(var, 0) for var in indicators_to_merge]
+        self.cpx.objective.set_linear(ind_seq)
+
+        #  Change  max_deviation_from_mean if needed
+        if self._maxdevs is not None:
+            # Reomve old constraint
+            self.cpx.linear_constraints.delete('max_deviations_from_mean')
+            use_indicators = set(self._dev_indicators + self._rp_indicators +
+                                 [merged_indicator_name]) - \
+                                 set(indicators_to_merge)
+            use_indicators = list(use_indicators)
+            constr = cplex.SparsePair(use_indicators, [1] * len(use_indicators))
+
+            self.cpx.linear_constraints.add(lin_expr=[constr],
+                                            rhs=[self._maxdevs], senses=["L"],
+                                            names=["max_deviations_from_mean"])
+
+        # Set indicator relation
+        equal_ind_constraints = []
+        equal_ind_names = []
+        for ind in indicators_to_merge:
+            equal_ind_constraints.append(
+                cplex.SparsePair([merged_indicator_name, ind], [1, -1])
+                )
+            equal_ind_names.append('merge' + ind)
+        self.cpx.linear_constraints.add(
+            lin_expr=equal_ind_constraints, rhs=[0]*len(indicators_to_merge),
+            senses=['E']*len(indicators_to_merge), names=equal_ind_names
+        )
+
     def set_edge_sign(self, edge, sign):
         """Restrict edge to be positive or negative.
 
@@ -349,7 +394,7 @@ class CnrProblem(PerturbationPanel):
         """Restrict edge to be positive or negative.
 
         Input:
-        pert: tuple or list of tuples 
+        pert: tuple or list of tuples
             Tuple should be (perturbation name, perturbation target), e.g.
             ('plx', 'MEK')
         sign: string, 'pos' or 'neg'
@@ -373,6 +418,23 @@ class CnrProblem(PerturbationPanel):
             cnr.cplexutils.set_vars_negative(self.cpx, varnames)
         else:
             raise ValueError("sign should be one of: ('pos', 'neg')")
+
+    def set_interactions_status(self, interaction_list, status):
+        """Force interaction to be absent/persent.
+
+        Parameters:
+        -----------
+        interaction_list: list of tuples
+            tuples should have form (node_i, node_j): with n_j --> n_i
+
+        status: {1, 0}
+            1. Interaction is present, 0 absent
+        """
+        indicator_lst = ['_'.join(['I', n_i, n_j]) for n_i, n_j in interaction_list]
+
+        for indicator in indicator_lst:
+            print("setting indicator " + indicator + " to " + str(status))
+            cnr.cplexutils.set_indicator_status(self.cpx, indicator, status)
 
     def add_cpx(self):
         """Create cplex MIQP problem."""
