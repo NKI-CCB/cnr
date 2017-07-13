@@ -137,7 +137,9 @@ class PerturbationPanel:
         return self._pert_annot
 
     @property
-    def ds_acting_perts(self): return self._ds_acting_perts
+    def ds_acting_perts(self):
+        """Get list of downstream acting perturbations."""
+        return self._ds_acting_perts
 
     def add_cell_line(self, name, rglob):
         """Add response data from cell lines to PerturbationPanel.

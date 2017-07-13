@@ -18,7 +18,8 @@ def _add_direct_target(nodes, pert_name, target, base_name):
     return to_add
 
 
-def _add_downstream_effect(nodes, pert_name, pert_target, prior_network, base_name):
+def _add_downstream_effect(nodes, pert_name, pert_target, prior_network,
+                           base_name):
     to_add = np.zeros([len(nodes), 1], dtype=sympy.Symbol)
     # If restricted to prior network
     if prior_network:
@@ -161,7 +162,7 @@ class CnrProblem(PerturbationPanel):
     rpb : float, optional
         Bounds on local response coefficient, default = 20.
 
-    eta : float in [0, 1], optional
+    eta : float, optional
         Weigth of interactions vs errors in objective functions. Higher eta
          favors sparser solutions. Default = 0.0
 
@@ -215,13 +216,14 @@ class CnrProblem(PerturbationPanel):
         PerturbationPanel.__init__(
             self, nodes=pert_panel.nodes, perts=pert_panel.perts,
             pert_annot=pert_panel.pert_annot,
-            ds_acting_perts=pert_panel._ds_acting_perts, rglob=pert_panel.rglob)
+            ds_acting_perts=pert_panel._ds_acting_perts,
+            rglob=pert_panel.rglob)
         self._eta = eta
         self._theta = theta
         self._prior = prior_network
         self._maxints = maxints
         self._maxdevs = maxdevs
-        self._r_bounds = rp_bounds
+        self._r_bounds = r_bounds
         self._rp_bounds = rp_bounds
         # Construct helper objects
         self._rloc_dict = self._gen_rloc()
@@ -245,7 +247,9 @@ class CnrProblem(PerturbationPanel):
         return self._rpert_dict
 
     @property
-    def eta(self): return self._eta
+    def eta(self):
+        """Return value of eta, higher eta favors sparser solutions."""
+        return self._eta
 
     @property
     def theta(self): return self._theta
@@ -307,8 +311,8 @@ class CnrProblem(PerturbationPanel):
             rpvar_elements = rpvar.split('_')
             # rpvar is expected to have the form:
             # rp_cellline_pertname_node or rpDS_cellline_pertname_node
-            assert rpvar_elements[0] in {'rp', "rpDS"}, (rpvar +
-                                                         ' has unexpected form')
+            assert rpvar_elements[0] in {'rp', "rpDS"}, (rpvar + ' has \
+                unexpected form')
             assert rpvar_elements[1] in self.cell_lines
             assert rpvar_elements[2] in self.pert_annot.keys()
             assert rpvar_elements[3] in self.nodes
@@ -345,9 +349,10 @@ class CnrProblem(PerturbationPanel):
             self.cpx.linear_constraints.delete('max_deviations_from_mean')
             use_indicators = set(self._dev_indicators + self._rp_indicators +
                                  [merged_indicator_name]) - \
-                                 set(indicators_to_merge)
+                set(indicators_to_merge)
             use_indicators = list(use_indicators)
-            constr = cplex.SparsePair(use_indicators, [1] * len(use_indicators))
+            constr = cplex.SparsePair(
+                use_indicators, [1] * len(use_indicators))
 
             self.cpx.linear_constraints.add(lin_expr=[constr],
                                             rhs=[self._maxdevs], senses=["L"],
@@ -359,11 +364,11 @@ class CnrProblem(PerturbationPanel):
         for ind in indicators_to_merge:
             equal_ind_constraints.append(
                 cplex.SparsePair([merged_indicator_name, ind], [1, -1])
-                )
+            )
             equal_ind_names.append('merge' + ind)
         self.cpx.linear_constraints.add(
-            lin_expr=equal_ind_constraints, rhs=[0]*len(indicators_to_merge),
-            senses=['E']*len(indicators_to_merge), names=equal_ind_names
+            lin_expr=equal_ind_constraints, rhs=[0] * len(indicators_to_merge),
+            senses=['E'] * len(indicators_to_merge), names=equal_ind_names
         )
 
     def set_edge_sign(self, edge, sign):
@@ -430,7 +435,8 @@ class CnrProblem(PerturbationPanel):
         status: {1, 0}
             1. Interaction is present, 0 absent
         """
-        indicator_lst = ['_'.join(['I', n_i, n_j]) for n_i, n_j in interaction_list]
+        indicator_lst = ['_'.join(['I', n_i, n_j])
+                         for n_i, n_j in interaction_list]
 
         for indicator in indicator_lst:
             print("setting indicator " + indicator + " to " + str(status))
@@ -440,6 +446,7 @@ class CnrProblem(PerturbationPanel):
         """Create cplex MIQP problem."""
         # Initialize the Cplex object.
         cpx = cplex.Cplex()
+
         cpx.set_problem_type(cplex.Cplex.problem_type.MIQP)
         cpx.objective.set_sense(cpx.objective.sense.minimize)
 
@@ -573,7 +580,8 @@ class CnrProblem(PerturbationPanel):
         # ---------------------------------------------------------------------
         # Add quadratic part to objective function
         for err in self._error_terms:
-            cpx.objective.set_quadratic_coefficients(err, err, 1. - self._eta)
+            cpx.objective.set_quadratic_coefficients(
+                err, err, 1.)  # - self._eta)
 
         # ---------------------------------------------------------------------
         # Construct deviation from mean constraints
