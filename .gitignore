@@ -2,3 +2,4 @@ build
 cnr.egg-info
 dist
 notebooks
+cnr/__pycache__
