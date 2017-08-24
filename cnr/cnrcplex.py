@@ -156,21 +156,34 @@ class CnrProblem(PerturbationPanel):
     ---------
     perturbation_panel : PerturbationPanel object
 
-    rb : float, optional
-        Bounds on local response coefficient, default = 20
+    bounds : float > 0, optional (default=cplex.infinity)
+        Set the bounds on all continious variables in the models. This is
+        overwritten if more specific (r_bounds, rp_bounds, res_bounds,
+        dev_bounds) bounds are set.
 
-    rpb : float, optional
-        Bounds on local response coefficient, default = 20.
+    r_bounds : float > 0, optional
+        Sets/overwrites the bounds on local response coefficient
 
-    eta : float, optional
+    rp_bounds : float > 0, optional
+        Sets/overwrites on bounds on the perturbation strengths
+
+    dev_bounds : float > 0, optional
+        Sets/overwrites the bounds on the deviations from mean.
+
+    res_bounds: float > 0, optional
+        Sets/overwrites the bounds on the residuals. Setting these
+        tight might increase stability of the problem, but can also make it
+        infeasible.
+
+    eta : float, optional (default = 0.0)
         Weigth of interactions vs errors in objective functions. Higher eta
-         favors sparser solutions. Default = 0.0
+         favors sparser solutions.
 
-    theta : float, optional
-        Weight of deviation from mean in objective function. Default = 0.0.
-        Higher values favor more similar solutions.
+    theta : float, optional (default = 0.0)
+        Weight of deviation from mean in objective function. Higher values
+        favor more similar solutions.
 
-    prior_network :  List of 2-tuples
+    prior_network :  List of 2-tuples, optional
         If provided, possible interactions are restricted to this set
 
     maxints : int, optional
@@ -209,8 +222,15 @@ class CnrProblem(PerturbationPanel):
     """
 
     def __init__(
-            self, pert_panel, r_bounds=20., rp_bounds=20., eta=0.0,
-            theta=0.0, prior_network=None, maxints=None, maxdevs=None):
+            self, pert_panel,
+            bounds=cplex.infinity,
+            r_bounds=None,
+            rp_bounds=None,
+            dev_bounds=None,
+            res_bounds=None,
+            eta=0.0, theta=0.0,
+            maxints=None, maxdevs=None,
+            prior_network=None):
         """Initialization from PerturbationPanel object."""
         # From input
         PerturbationPanel.__init__(
@@ -223,8 +243,10 @@ class CnrProblem(PerturbationPanel):
         self._prior = prior_network
         self._maxints = maxints
         self._maxdevs = maxdevs
-        self._r_bounds = r_bounds
-        self._rp_bounds = rp_bounds
+        self._r_bounds = r_bounds if r_bounds is not None else bounds
+        self._rp_bounds = rp_bounds if rp_bounds is not None else bounds
+        self._res_bounds = res_bounds if res_bounds is not None else bounds
+        self._dev_bounds = dev_bounds if dev_bounds is not None else bounds
         # Construct helper objects
         self._rloc_dict = self._gen_rloc()
         self._rpert_dict = self._gen_rpert()
@@ -547,8 +569,8 @@ class CnrProblem(PerturbationPanel):
                     self._error_terms.append(errvar)
                     cpx.variables.add(names=[errvar],
                                       types=[cpx.variables.type.continuous],
-                                      lb=[-200],
-                                      ub=[200])
+                                      lb=[-self._res_bounds],
+                                      ub=[self._res_bounds])
 
                     linexps.append([var, coef])  # Add constraint to linexps
                     eqname = '_'.join(['eq', cell_line, str(node), str(pert)])
@@ -640,8 +662,8 @@ class CnrProblem(PerturbationPanel):
         cpx.variables.add(names=both_vars,
                           types=[cpx.variables.type.continuous] *
                           len(both_vars),
-                          lb=[-200] * len(both_vars),
-                          ub=[200] * len(both_vars))
+                          lb=[-self._dev_bounds] * len(both_vars),
+                          ub=[self._dev_bounds] * len(both_vars))
 
         # Add the constraints for deviations from mean
         both_constr = dev_constr + rpdev_constr
