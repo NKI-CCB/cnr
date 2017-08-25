@@ -59,7 +59,7 @@ class CnrResult(PerturbationPanel):
             self, nodes=p.nodes, perts=p.perts, pert_annot=p.pert_annot,
             ds_acting_perts=p.ds_acting_perts, rglob=p.rglob)
 
-        self.vardict = self._gen_vardict(p.cpx, solidx)
+        self.vardict = _get_vardict_from_cpx(p.cpx, solidx)
         self.objective_value = p.cpx.solution.pool.get_objective_value(solidx)
         self.imap = _get_imap_from_cpx(p.cpx, self._nodes, solidx)
         self.rloc = self._gen_rloc_dict(p.cpx, solidx)
@@ -67,14 +67,14 @@ class CnrResult(PerturbationPanel):
         self.rglob_predicted = cnr.cnrutils.predict_response(self.rloc,
                                                              self.rpert)
         self.rpert_sym = p.rpert_dict
-        self.bounds = self._get_bounds_from_cpx(p.cpx)
+        self.bounds = _get_bounds_from_cpx(p.cpx)
         self.residuals = {
             cl: _get_residuals_from_cpx(
                 p.cpx, self.nodes, self.rglob[cl].columns, prefix=cl,
                 solidx=solidx
             ) for cl in self.cell_lines
         }
-        self.meta_info = self._extract_meta_info(p)
+        self.meta_info = _extract_meta_info(p)
 
     @property
     def prediction_error(self):
@@ -165,12 +165,6 @@ class CnrResult(PerturbationPanel):
         df.index = names
         return df.sort_index()
 
-    def _gen_vardict(self, cpx, solidx):
-        """Retun dict with var: value as entries, for selected solution."""
-        var_names = cpx.variables.get_names()
-        var_vals = cpx.solution.pool.get_values(solidx, var_names)
-        return dict(zip(var_names, var_vals))
-
     def _gen_rloc_dict(self, cpx, solidx):
         rloc_dict = {}
         for cl in self.cell_lines:
@@ -186,28 +180,6 @@ class CnrResult(PerturbationPanel):
                 cpx, value, self.nodes, self.rglob[key].columns, solidx=solidx
             )
         return rp_dict
-
-    def _get_bounds_from_cpx(self, cpx):
-        tmp = zip(cpx.variables.get_names(),
-                  cpx.variables.get_lower_bounds(),
-                  cpx.variables.get_upper_bounds())
-
-        bounds = dict()
-        for name, lower, upper in tmp:
-            bounds[name] = (lower, upper)
-        return bounds
-
-    def _extract_meta_info(self, prob):
-        meta_info = dict()
-        meta_info['eta'] = prob.eta
-        meta_info['theta'] = prob.theta
-        if prob.maxints:
-            meta_info['maxints'] = prob.maxints
-        if prob.maxdevs:
-            meta_info['maxdevs'] = prob.maxdevs
-        if prob.prior_network:
-            meta_info['maxints'] = len(prob.prior_network)
-        return meta_info
 
     def _gen_deviations_dict(self, cpx, solidx):
         dev_dict = {}
@@ -256,7 +228,7 @@ class CnrResultPool(PerturbationPanel):
             ds_acting_perts=p.ds_acting_perts, rglob=p.rglob)
         self.solutions = {solidx: CnrResult(p, solidx=solidx) for solidx in
                           range(p.cpx.solution.pool.get_num())}
-        self.meta_info = self._extract_meta_info(p)
+        self.meta_info = _extract_meta_info(p)
 
     @property
     def nsols(self):
@@ -302,24 +274,27 @@ class CnrResultPool(PerturbationPanel):
         print(str(removed) + ' of ' + str(nsols_pre) +
               ' solutions removed from solution pool.')
 
-    def _extract_meta_info(self, prob):
-        meta_info = dict()
-        meta_info['eta'] = prob.eta
-        meta_info['theta'] = prob.theta
-        if prob.maxints:
-            meta_info['maxints'] = prob.maxints
-        if prob.maxdevs:
-            meta_info['maxdevs'] = prob.maxdevs
-        if prob.prior_network:
-            meta_info['maxints'] = len(prob.prior_network)
-        return meta_info
-
-
 ##############################################################################
 #
 # Helper functions (private)
 
 # For extracting information from cplex object ------------------------------
+def _get_vardict_from_cpx(cpx, solidx):
+    """Retun dict with var: value as entries, for selected solution."""
+    var_names = cpx.variables.get_names()
+    var_vals = cpx.solution.pool.get_values(solidx, var_names)
+    return dict(zip(var_names, var_vals))
+
+
+def _get_bounds_from_cpx(cpx):
+    tmp = zip(cpx.variables.get_names(),
+              cpx.variables.get_lower_bounds(),
+              cpx.variables.get_upper_bounds())
+
+    bounds = dict()
+    for name, lower, upper in tmp:
+        bounds[name] = (lower, upper)
+    return bounds
 
 
 def _get_imap_from_cpx(cpx, nodes, solidx=0):
@@ -403,9 +378,7 @@ def _get_rloc_from_cpx(cpx, nodes, prefix=None, solidx=0):
         assert len(sps) == 1, key + " has unexpected form"
         sps = sps[0]
         assert len(sps) == 2, key + " has unexpected form"
-        i = nodes.index(sps[0])
-        j = nodes.index(sps[1])
-        mat[i][j] = value
+        mat[nodes.index(sps[0])][nodes.index(sps[1])] = value
 
     df = pd.DataFrame(mat)
     df.index = nodes
@@ -514,7 +487,7 @@ def _get_residuals_from_cpx(cpx, nodes, perts, prefix=None, solidx=0):
     """
     base = "res"
     if prefix:
-        assert type(prefix) == str
+        assert isinstance(prefix, str)
         base = "_".join([base, prefix])
     assert cpx.solution.is_primal_feasible()
     assert solidx < cpx.solution.pool.get_num()
@@ -537,3 +510,15 @@ def _get_residuals_from_cpx(cpx, nodes, perts, prefix=None, solidx=0):
     df = pd.DataFrame(data=mat, index=nodes, columns=perts)
 
     return df
+
+def _extract_meta_info(prob):
+    meta_info = dict()
+    meta_info['eta'] = prob.eta
+    meta_info['theta'] = prob.theta
+    if prob.maxints:
+        meta_info['maxints'] = prob.maxints
+    if prob.maxdevs:
+        meta_info['maxdevs'] = prob.maxdevs
+    if prob.prior_network:
+        meta_info['maxints'] = len(prob.prior_network)
+    return meta_info

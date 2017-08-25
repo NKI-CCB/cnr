@@ -56,7 +56,7 @@ def generate_rpert_symbols(nodes, perturbations, pert_annot, ds_acting_perts,
     base = "rp"
     baseds = 'rpDS'
     if prefix:
-        assert type(prefix) == str
+        assert isinstance(prefix, str)
         base = '_'.join([base, prefix])
         baseds = '_'.join([baseds, prefix])
 
@@ -124,7 +124,7 @@ def generate_rloc_symbols(nodes, prior_network, prefix=None):
                     mat[i][j] = sympy.Symbol('r_i_i')
                 else:
                     mat[i][j] = sympy.Symbol(BASE + nodes[i] + '_' + nodes[j])
-    return (mat)
+    return mat
 
 
 def generate_indicators(nodes, prior_network, base='I'):
@@ -274,16 +274,24 @@ class CnrProblem(PerturbationPanel):
         return self._eta
 
     @property
-    def theta(self): return self._theta
+    def theta(self):
+        """Return value of theta, higher values favor more similar solutoins."""
+        return self._theta
 
     @property
-    def prior_network(self): return self._prior
+    def prior_network(self):
+        """Return allowed edges in the solution as list of tuples."""
+        return self._prior
 
     @property
-    def maxints(self): return self._maxints
+    def maxints(self):
+        """Return maximally allowed number of edges in solution."""
+        return self._maxints
 
     @property
-    def maxdevs(self): return self._maxdevs
+    def maxdevs(self):
+        """Return maximally allowed differing edges or perturbations."""
+        return self._maxdevs
 
     def _gen_rloc(self):
         rldict = dict()
@@ -464,7 +472,7 @@ class CnrProblem(PerturbationPanel):
             print("setting indicator " + indicator + " to " + str(status))
             cnr.cplexutils.set_indicator_status(self.cpx, indicator, status)
 
-    def initialize_from_solution(self, cnr_res):
+    def initialize_from_solution(self, cnr_res, solidx=0):
         """Start optimization from earlier obtained solution.
 
         param:
@@ -472,7 +480,8 @@ class CnrProblem(PerturbationPanel):
             Must be derived from same CnrPanel object.
         """
         effort_level = self.cpx.MIP_starts.effort_level.auto
-        assert set(cnr_res.vardict.keys()) == set(self.cpx.variables.get_names())
+        assert set(cnr_res.vardict.keys()) == set(
+            self.cpx.variables.get_names())
         variables, values = zip(*cnr_res.vardict.items())
         self.cpx.MIP_starts.add(
             [list(variables), list(values)],
