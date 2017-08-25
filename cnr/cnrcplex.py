@@ -464,6 +464,19 @@ class CnrProblem(PerturbationPanel):
             print("setting indicator " + indicator + " to " + str(status))
             cnr.cplexutils.set_indicator_status(self.cpx, indicator, status)
 
+    def initialize_cpx(self, cnrprob_inial):
+        """Start optimization from alternative solution
+
+        param:
+        cnrprob_initial: cnr.CnrProblem
+            Problem with solutions. Must be derived from same CnrPanel object.
+        """
+        self.cpx.MIP_starts.add(
+            [cnrprob_inial.cpx.variables.get_names(),
+             cnrprob_inial.cpx.solution.get_values()],
+            1
+        )
+
     def add_cpx(self):
         """Create cplex MIQP problem."""
         # Initialize the Cplex object.
@@ -732,6 +745,12 @@ class CnrProblem(PerturbationPanel):
                                           rhs=0., sense='E',
                                           lin_expr=constr,
                                           name=name)
+            # This indicator can only be active if the corresponding edge is
+            # present. Implement as IDev - I < 1
+            ivar_edge = '_'.join(["I", dev_elements[1], dev_elements[2]])
+            constr = cplex.SparsePair(ind=[ivar, ivar_edge], val=[1., -1])
+            cpx.linear_constraints.add(
+                lin_expr=[constr], senses=["L"], rhs=[0])
 
         # ---------------------------------------------------------------------
         # Construct indicator constraints for deviation of perturbation from
