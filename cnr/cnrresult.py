@@ -75,6 +75,7 @@ class CnrResult(PerturbationPanel):
             ) for cl in self.cell_lines
         }
         self.meta_info = self._extract_meta_info(p)
+        self.cpx = p.cpx
 
     @property
     def prediction_error(self):
