@@ -464,17 +464,19 @@ class CnrProblem(PerturbationPanel):
             print("setting indicator " + indicator + " to " + str(status))
             cnr.cplexutils.set_indicator_status(self.cpx, indicator, status)
 
-    def initialize_cpx(self, cnrprob_inial):
-        """Start optimization from alternative solution
+    def initialize_from_solution(self, cnr_res):
+        """Start optimization from earlier obtained solution.
 
         param:
-        cnrprob_initial: cnr.CnrProblem
-            Problem with solutions. Must be derived from same CnrPanel object.
+        cnr_res: cnr.CnrResult
+            Must be derived from same CnrPanel object.
         """
+        effort_level = self.cpx.MIP_starts.effort_level.auto
+        assert set(cnr_res.vardict.keys()) == set(self.cpx.variables.get_names())
+        variables, values = zip(*cnr_res.vardict.items())
         self.cpx.MIP_starts.add(
-            [cnrprob_inial.cpx.variables.get_names(),
-             cnrprob_inial.cpx.solution.get_values()],
-            1
+            [list(variables), list(values)],
+            effort_level
         )
 
     def add_cpx(self):
