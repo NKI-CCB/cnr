@@ -64,8 +64,6 @@ class CnrResult(PerturbationPanel):
         self.imap = _get_imap_from_cpx(p.cpx, self._nodes, solidx)
         self.rloc = self._gen_rloc_dict(p.cpx, solidx)
         self.rpert = self._gen_rpert_dict(p.cpx, p.rpert_dict, solidx=solidx)
-        self.rglob_predicted = cnr.cnrutils.predict_response(self.rloc,
-                                                             self.rpert)
         self.rpert_sym = p.rpert_dict
         self.bounds = _get_bounds_from_cpx(p.cpx)
         self.residuals = {
@@ -106,6 +104,11 @@ class CnrResult(PerturbationPanel):
             mean_ssr += np.sum(np.array(np.square(self.residuals[cl]))) / n_res
         mean_ssr = mean_ssr / len(self.cell_lines)
         return mean_ssr
+
+    @property
+    def rglob_predicted(self):
+        """Return predicted global response matrix."""
+        return cnr.cnrutils.predict_response(self.rloc, self.rpert)
 
     def add_maxlikelysol(self, method=None, options=None):
         """Add  MaxLikelySol instance.
