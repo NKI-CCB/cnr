@@ -52,6 +52,17 @@ class MaxLikelySol:
         """"Calculate difference between observed and measured rglob."""
         return cnr.cnrutils.error(self.rglob_predicted, self._rglob, sum=True)
 
+    # TODO Fix
+    # @property
+    # def mssr(self):
+    #     """Return mean sum of squares of residuals."""
+    #     mean_ssr = 0
+    #     for cl in self.cell_lines:
+    #         n_res = np.size(self.residuals[cl])
+    #         mean_ssr += np.sum(np.array(np.square(self.residuals[cl]))) / n_res
+    #     mean_ssr = mean_ssr / len(self.cell_lines)
+    #     return mean_ssr
+
     def deviations_overview(self):
         """Summarize non-zero deviations.
 

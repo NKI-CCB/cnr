@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 
-def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
+def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False, vmin=-1, vmax=1):
     """Draw heatmap of d."""
     # Set up parameters
     if not cell_lines:
@@ -16,7 +16,6 @@ def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
     fsize = (figwidth, figwidth * nrow / (ncol * ncl + 3))
 
     fig, axn = plt.subplots(1, ncl, sharex=True, sharey=True, figsize=fsize)
-    # cbar_ax = fig.add_axes([.91, .3, .03, .4])
     cbar_ax = fig.add_axes([.91, .2, .02, .6])
 
     for i, ax in enumerate(axn.flat):
@@ -26,6 +25,9 @@ def heatmap_cnr(d, cell_lines=None, figwidth=15, annot=False):
                     cbar=i == 0,
                     linewidths=.3,
                     annot=annot,
+                    center=0,
+                    vmin=vmin, vmax=vmax,
+                    cmap="RdBu",
                     cbar_ax=None if i else cbar_ax)
         ax.set_title(cl, fontdict={'fontsize': 1.2 * figwidth,
                                    'fontweight': "bold"})
@@ -99,6 +101,6 @@ def graph_from_sol(sol, cl, widthfactor=10):
             node_types[n] = 'protein'
         else:
             node_types[n] = 'perturbation'
-    nx.set_node_attributes(g, 'type', node_types)
+    nx.set_node_attributes(g, node_types, name='type')
 
     return g
