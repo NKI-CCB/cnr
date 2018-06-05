@@ -275,7 +275,7 @@ class CnrProblem(PerturbationPanel):
 
     @property
     def theta(self):
-        """Return value of theta, higher values favor more similar solutoins."""
+        """Return theta, higher values favor more similar solutions."""
         return self._theta
 
     @property
@@ -355,38 +355,44 @@ class CnrProblem(PerturbationPanel):
                     'IrpDSDev_' + '_'.join(rpvar.split('_')[2:]))
         return list(set(indicator_list))
 
-    def merge_indicators(self, to_merge, merged_indicator_name):
-        """ONLY WORKS FOR PERTURBATIONS."""
-        indicators_to_merge = []
-        # Find names of indicators to use.
-        for ind in self._rp_indicators:
-            pert = ind.split('_')[1]
-            if pert in to_merge:
-                ind = indicators_to_merge.append(ind)
-        assert len(indicators_to_merge) == len(to_merge)
+    def merge_indicators(self, indicators_to_merge, merged_indicator_name):
+        """Merge indicators of direct perturbation effects.
+
+        ONLY WORKS FOR PERTURBATIONS
+        Usefull when a set of perturbations either all diver or not, e.g.
+        the same inhibitor at different concentrations.
+
+        Parameters
+        ----------
+        to_merge : list of indicator names to merge.
+
+        merged_indicator_name : name of merged indicator
+        """
+
+        for indicator in indicators_to_merge:
+            assert indicator in self._rp_indicators
 
         self.cpx.variables.add(names=[merged_indicator_name],
                                types=[self.cpx.variables.type.binary],
                                lb=[0], ub=[1], obj=[self._theta])
 
-        # Change objective coefficients of merged indicators
+        # Change objective coefficients of merged indicators to 0
         ind_seq = [(var, 0) for var in indicators_to_merge]
         self.cpx.objective.set_linear(ind_seq)
 
-        #  Change  max_deviation_from_mean if needed
+        #  Change max_deviation_from_mean if needed
         if self._maxdevs is not None:
-            # Reomve old constraint
+            # Remove old constraint
             self.cpx.linear_constraints.delete('max_deviations_from_mean')
+            # Collect indicators for new constraint
             use_indicators = set(self._dev_indicators + self._rp_indicators +
                                  [merged_indicator_name]) - \
                 set(indicators_to_merge)
-            use_indicators = list(use_indicators)
-            constr = cplex.SparsePair(
-                use_indicators, [1] * len(use_indicators))
-
-            self.cpx.linear_constraints.add(lin_expr=[constr],
-                                            rhs=[self._maxdevs], senses=["L"],
-                                            names=["max_deviations_from_mean"])
+            constr = cplex.SparsePair(list(use_indicators),
+                                      [1] * len(use_indicators))
+            self.cpx.linear_constraints.add(
+                lin_expr=[constr], rhs=[self._maxdevs], senses=["L"],
+                names=["max_deviations_from_mean"])
 
         # Set indicator relation
         equal_ind_constraints = []
@@ -519,7 +525,7 @@ class CnrProblem(PerturbationPanel):
                           lb=[-self._rp_bounds] * n_rp,
                           ub=[self._rp_bounds] * n_rp)
 
-        # Add indicator constraint as variables
+        # Add indicator constraint on presence/absence of edges as variables
         Ni = len(self._indicators)
         cpx.variables.add(names=self._indicators,
                           types=[cpx.variables.type.binary] * Ni,
@@ -527,7 +533,7 @@ class CnrProblem(PerturbationPanel):
                           ub=[1] * Ni,
                           obj=[self._eta] * Ni)
 
-        # Add indicator constraint as variables
+        # Add indicator constraint on differences between edges  as variables
         Nidev = len(self._dev_indicators)
         cpx.variables.add(names=self._dev_indicators,
                           types=[cpx.variables.type.binary] * Nidev,
@@ -670,6 +676,8 @@ class CnrProblem(PerturbationPanel):
             # Split expressions and keep symbols
             for rp in rp_symbol_lst:
                 rp_lst += [str(r) for r in rp.atoms()]
+            # Remove duplicates
+            rp_lst = list(set(rp_lst))
 
             for rp in rp_lst:
                 var = ["rpdev_" + rp, rp]

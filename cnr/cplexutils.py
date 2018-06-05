@@ -28,9 +28,9 @@ def set_rhs_linear(cpx, newval):
 
 
 def set_indicator_status(cpx, indicator, status):
-    """Set indicator constraint = 1.
+    """Set indicator active or inactive.
 
-    This can be used to force interactions to be present in a network
+    This can be used to force interactions to be present or absent in a network
     reconstruction.
 
     Parameters
@@ -39,11 +39,12 @@ def set_indicator_status(cpx, indicator, status):
 
     indicator : string.
         Name of indicator.
+
+    status : {0, 1}
+        0 to force indicator to be inactive, 1 active
     """
     assert indicator in cpx.variables.get_names(), indicator + " is not a \
     variable"
-    # assert cpx.variables.get_types(indicator) == "B", indicator + " is not a \
-    #   binary variable"
     if status == 1:
         assert cpx.variables.get_upper_bounds(indicator) == 1, indicator + \
             " is already set inactive, cannot be set to active"
@@ -54,7 +55,6 @@ def set_indicator_status(cpx, indicator, status):
         cpx.variables.set_upper_bounds(indicator, 0)
     else:
         raise ValueError("status should be either 1 or 0.")
-    
 
 
 def set_rhs_indicator(cpx, newval):
@@ -106,4 +106,3 @@ def set_vars_negative(cpx, var_names):
         assert name in cpx.variables.get_names(), name + ' not a variable'
         ubounds.append((name, 0.))
     cpx.variables.set_upper_bounds(ubounds)
-
