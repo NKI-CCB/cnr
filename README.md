@@ -2,9 +2,10 @@
 
 This repository contains the method described in the publication:
 "Comparative Network Reconstruction using Mixed Integer Programming", Bosdriesz et al., 2018, https://doi.org/10.1101/243709.
+
 Comparative Network Reconstruction (CNR) aims to reconstruct and quantify (signaling) networks from perturbation experiments, with the aim of finding relevant differences between 2 or more cell lines.
 
-The code for the applications described in manuscript can be found in their own repository https://bitbucket.org/evertbosdriesz/cnr.
+The code for the applications described in manuscript can be found in their own repository: https://github.com/NKI-CCB/CNR-analyses.
 
 ## Requirements
 
